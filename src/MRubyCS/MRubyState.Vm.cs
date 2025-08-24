@@ -553,7 +553,7 @@ partial class MRubyState
                         switch (registerA.Object)
                         {
                             case RArray array when valueB.IsInteger:
-                                registerA = array[(int)valueB.bits];
+                                registerA = array[(int)valueB.Bits];
                                 goto Next;
                             case RHash hash:
                                 registerA = hash.GetValueOrDefault(valueB, this);
@@ -728,7 +728,7 @@ partial class MRubyState
                                     }
                                     case BreakTag.Jump:
                                     {
-                                        var newProgramCounter = (int)breakObject.Value.bits;
+                                        var newProgramCounter = (int)breakObject.Value.Bits;
                                         if (irep.TryFindCatchHandler(callInfo.ProgramCounter, CatchHandlerType.Ensure, out var catchHandler))
                                         {
                                             // avoiding a jump from a catch handler into the same handler
@@ -1371,8 +1371,8 @@ partial class MRubyState
                         var rhsVType = rhs.VType;
                         if (lhsVType == MRubyVType.Integer && rhsVType == MRubyVType.Integer)
                         {
-                            var leftInt = registerA.bits;
-                            var rightInt = rhs.bits;
+                            var leftInt = registerA.Bits;
+                            var rightInt = rhs.Bits;
                             try
                             {
                                 registerA = MRubyValue.From(opcode switch
@@ -1399,14 +1399,15 @@ partial class MRubyState
                             {
                                 IntegerMembers.RaiseDivideByZeroError(this);
                             }
+
                             goto Next;
                         }
 
                         if (lhsVType is MRubyVType.Integer or MRubyVType.Float &&
                             rhsVType is MRubyVType.Integer or MRubyVType.Float)
                         {
-                            var leftVal = lhsVType == MRubyVType.Integer ? registerA.bits : registerA.FloatValue;
-                            var rightVal = rhsVType == MRubyVType.Integer ? rhs.bits : rhs.FloatValue;
+                            var leftVal = lhsVType == MRubyVType.Integer ? registerA.Bits : registerA.FloatValue;
+                            var rightVal = rhsVType == MRubyVType.Integer ? rhs.Bits : rhs.FloatValue;
 
                             registerA = MRubyValue.From(opcode switch
                             {
@@ -1421,7 +1422,7 @@ partial class MRubyState
 
                         if (lhsVType == MRubyVType.String && rhsVType == MRubyVType.String && opcode == OpCode.Add)
                         {
-                            registerA = MRubyValue.From(registerA.As<RString>() + rhs.As<RString>());
+                            registerA = MRubyValue.From(Unsafe.As<RString>(registerA.Union.RawObject) + Unsafe.As<RString>(rhs.Union.RawObject));
                             goto Next;
                         }
 
@@ -1442,7 +1443,7 @@ partial class MRubyState
                             case MRubyVType.Integer:
                                 try
                                 {
-                                    registerA = MRubyValue.From(checked(registerA.bits + rV));
+                                    registerA = MRubyValue.From(checked(registerA.Bits + rV));
                                 }
                                 catch (OverflowException)
                                 {
@@ -1510,8 +1511,8 @@ partial class MRubyState
                         if (lhsVType is MRubyVType.Integer or MRubyVType.Float &&
                             rhsVType is MRubyVType.Integer or MRubyVType.Float)
                         {
-                            var leftVal = lhsVType == MRubyVType.Integer ? registerA.bits : (long)registerA.FloatValue;
-                            var rightVal = rhsVType == MRubyVType.Integer ? rhs.bits : (long)rhs.FloatValue;
+                            var leftVal = lhsVType == MRubyVType.Integer ? registerA.Bits : (long)registerA.FloatValue;
+                            var rightVal = rhsVType == MRubyVType.Integer ? rhs.Bits : (long)rhs.FloatValue;
                             {
                                 registerA = MRubyValue.From(opcode switch
                                 {
@@ -1559,8 +1560,8 @@ partial class MRubyState
                         else
                         {
                             EnsureValueType(registerA, MRubyVType.Array);
-                            var array = registerA.As<RArray>();
-                            array.Concat(splat.As<RArray>());
+                            var array = Unsafe.As<RArray>(registerA.Union.RawObject);
+                            array.Concat(Unsafe.As<RArray>(splat.Union.RawObject));
                         }
                         goto Next;
                     }
@@ -1572,7 +1573,7 @@ partial class MRubyState
                         var v = registers[bbb.B];
                         if (v.VType == MRubyVType.Array)
                         {
-                            registerA = v.As<RArray>()[bbb.C];
+                            registerA = Unsafe.As<RArray>(v.Union.RawObject)[bbb.C];
                         }
                         else
                         {
@@ -1713,7 +1714,7 @@ partial class MRubyState
                         var lastIndex = bb.B * 2 + 1;
 
                         EnsureValueType(hashValue, MRubyVType.Hash);
-                        var hash = hashValue.As<RHash>();
+                        var hash = Unsafe.As<RHash>(hashValue.Union.RawObject);
                         for (var i = 1; i < lastIndex; i += 2)
                         {
                             hash.Add(Unsafe.Add(ref registerA, i), Unsafe.Add(ref registerA, i + 1));
@@ -1791,7 +1792,7 @@ partial class MRubyState
                             else
                             {
                                 state.EnsureClassOrModule(outer);
-                                outerClass = outer.As<RClass>();
+                                outerClass = Unsafe.As<RClass>(outer.Union.RawObject);
                             }
 
                             // mrb_vm_define_class
@@ -1829,7 +1830,7 @@ partial class MRubyState
                                     }
                                 }
 
-                                definedClass = old.As<RClass>();
+                                definedClass = Unsafe.As<RClass>(old.Union.RawObject);
                                 if (superClass != null)
                                 {
                                     // check super class
@@ -1869,7 +1870,7 @@ partial class MRubyState
                         else
                         {
                             EnsureClassOrModule(registerA);
-                            outerClass = registerA.As<RClass>();
+                            outerClass = Unsafe.As<RClass>(registerA.Union.RawObject);
                         }
 
                         RClass definedModule;
@@ -1886,7 +1887,7 @@ partial class MRubyState
                                     Raise(Names.TypeError, $"{StringifyAny(oldValue)} is not a module");
                                 }
                             }
-                            definedModule = old.As<RClass>();
+                            definedModule = Unsafe.As<RClass>(old.Union.RawObject);
                         }
                         else
                         {
@@ -1910,7 +1911,7 @@ partial class MRubyState
                         ref var nextCallInfo = ref Context.PushCallStack();
                         nextCallInfo.StackPointer = callInfo.StackPointer + bb.A;
                         nextCallInfo.CallerType = CallerType.InVmLoop;
-                        nextCallInfo.Scope = receiver.As<RClass>();
+                        nextCallInfo.Scope = Unsafe.As<RClass>(receiver.Union.RawObject);
                         nextCallInfo.Proc = proc;
                         nextCallInfo.MethodId = default;
                         nextCallInfo.ArgumentCount = 0;
