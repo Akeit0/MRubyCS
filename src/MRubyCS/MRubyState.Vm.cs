@@ -373,14 +373,11 @@ partial class MRubyState
                         registers[bb.A] = irep.PoolValues[bb.B];
                         goto Next;
                     case OpCode.LoadI8:
-                        Markers.LoadI8();
-                        bb = OperandBB.Read(sequence, ref callInfo.ProgramCounter);
-                        registers[bb.A] = MRubyValue.From(bb.B);
-                        goto Next;
                     case OpCode.LoadINeg:
+                        Markers.LoadI8();
                         Markers.LoadINeg();
                         bb = OperandBB.Read(sequence, ref callInfo.ProgramCounter);
-                        registers[bb.A] = MRubyValue.From(-bb.B);
+                        registers[bb.A] = MRubyValue.From(opcode == OpCode.LoadI8 ? bb.B : -bb.B);
                         goto Next;
                     case OpCode.LoadI__1:
                     case OpCode.LoadI_0:
@@ -411,24 +408,18 @@ partial class MRubyState
                         registers[bb.A] = MRubyValue.From(irep.Symbols[bb.B]);
                         goto Next;
                     case OpCode.LoadNil:
-                        Markers.LoadNil();
-                        a = ReadOperandB(sequence, ref callInfo.ProgramCounter);
-                        registers[a] = default;
-                        goto Next;
                     case OpCode.LoadSelf:
+                        Markers.LoadNil();
                         Markers.LoadSelf();
                         a = ReadOperandB(sequence, ref callInfo.ProgramCounter);
-                        registers[a] = registers[0];
+                        registers[a] = opcode == OpCode.LoadNil ? default : registers[0];
                         goto Next;
                     case OpCode.LoadT:
-                        Markers.LoadT();
-                        a = ReadOperandB(sequence, ref callInfo.ProgramCounter);
-                        registers[a] = MRubyValue.True;
-                        goto Next;
                     case OpCode.LoadF:
+                        Markers.LoadT();
                         Markers.LoadF();
                         a = ReadOperandB(sequence, ref callInfo.ProgramCounter);
-                        registers[a] = MRubyValue.False;
+                        registers[a] = MRubyValue.From(opcode == OpCode.LoadT);
                         goto Next;
                     case OpCode.GetGV:
                         Markers.GetGV();
@@ -446,14 +437,21 @@ partial class MRubyState
                         callInfo.ProgramCounter += 3;
                         goto Next;
                     case OpCode.GetIV:
-                        Markers.GetIV();
-                        bb = OperandBB.Read(sequence, ref callInfo.ProgramCounter);
-                        registers[bb.A] = registers[0].As<RObject>().InstanceVariables.Get(irep.Symbols[bb.B]);
-                        goto Next;
                     case OpCode.SetIV:
+                        Markers.GetIV();
                         Markers.SetIV();
                         bb = OperandBB.Read(sequence, ref callInfo.ProgramCounter);
-                        registers[0].As<RObject>().InstanceVariables.Set(irep.Symbols[bb.B], registers[bb.A]);
+                        ref var registerA = ref registers[bb.A];
+                        var symbol = irep.Symbols[bb.B];
+                        var variableTable = registers[0].As<RObject>().InstanceVariables;
+                        if (opcode == OpCode.GetIV)
+                        {
+                            registerA = variableTable.Get(symbol);
+                        }
+                        else
+                        {
+                            variableTable.Set(symbol, registerA);
+                        }
                         goto Next;
                     case OpCode.GetCV:
                         Markers.GetCV();
@@ -469,7 +467,7 @@ partial class MRubyState
                     case OpCode.GetConst:
                         Markers.GetConst();
                         bb = OperandBB.Read(sequence, ref callInfo.ProgramCounter);
-                        ref var registerA = ref registers[bb.A];
+                        registerA = ref registers[bb.A];
                     {
                         var id = irep.Symbols[bb.B];
                         var c = callInfo.Proc?.Scope?.TargetClass ?? ObjectClass;
@@ -629,23 +627,17 @@ partial class MRubyState
                     case OpCode.JmpIf:
                         Markers.JmpIf();
                         bs = OperandBS.Read(sequence, ref callInfo.ProgramCounter);
-                        if (registers[bs.A].Truthy)
+                        if (1 < Unsafe.As<TypeObjectUnion,nuint>(ref Unsafe.AsRef(in registers[bs.A].Union)))
                         {
                             callInfo.ProgramCounter += bs.B;
                         }
                         goto Next;
                     case OpCode.JmpNot:
-                        Markers.JmpNot();
-                        bs = OperandBS.Read(sequence, ref callInfo.ProgramCounter);
-                        if (registers[bs.A].Falsy)
-                        {
-                            callInfo.ProgramCounter += bs.B;
-                        }
-                        goto Next;
                     case OpCode.JmpNil:
+                        Markers.JmpNot();
                         Markers.JmpNil();
                         bs = OperandBS.Read(sequence, ref callInfo.ProgramCounter);
-                        if (registers[bs.A].IsNil)
+                        if (Unsafe.As<TypeObjectUnion,nuint>(ref Unsafe.AsRef(in registers[bs.A].Union)) <= (opcode == OpCode.JmpNot ? 1u : 0))
                         {
                             callInfo.ProgramCounter += bs.B;
                         }
@@ -1662,16 +1654,12 @@ partial class MRubyState
                         goto Next;
                     }
                     case OpCode.ArySplat:
-                        Markers.ArySplat();
-                        a = ReadOperandB(sequence, ref callInfo.ProgramCounter);
-                        registerA = ref registers[a];
-                        registerA = SplatArray(registerA);
-                        goto Next;
                     case OpCode.Intern:
+                        Markers.ArySplat();
                         Markers.Intern();
                         a = ReadOperandB(sequence, ref callInfo.ProgramCounter);
                         registerA = ref registers[a];
-                        registerA = MRubyValue.From(Intern(registerA.As<RString>()));
+                        registerA = opcode == OpCode.ArySplat ? SplatArray(registerA) : MRubyValue.From(Intern(registerA.As<RString>()));
                         goto Next;
                     case OpCode.Symbol:
                     {
