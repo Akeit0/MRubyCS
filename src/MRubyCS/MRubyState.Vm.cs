@@ -693,15 +693,17 @@ partial class MRubyState
                             case MRubyVType.Module:
                                 break;
                             default:
-                                var ex = new RException(
-                                    NewString("class or module required for rescue clause"u8),
-                                    GetExceptionClass(Names.TypeError));
-                                Exception = new MRubyRaiseException(this, ex, Context.CallDepth);
+                                Exception = CreateNotClassOrModuleError(this);
                                 if (TryRaiseJump(ref callInfo))
                                 {
                                     goto JumpAndNext;
                                 }
                                 throw Exception;
+
+                                static MRubyLongJumpException CreateNotClassOrModuleError(MRubyState state) =>
+                                    new MRubyRaiseException(state, new RException(
+                                        state.NewString("class or module required for rescue clause"u8),
+                                        state.GetExceptionClass(Names.TypeError)), state.Context.CallDepth);
                         }
 
                         registers[bb.B] = MRubyValue.From(KindOf(exceptionObjectValue, exceptionClassValue.As<RClass>()));
