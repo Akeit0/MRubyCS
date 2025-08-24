@@ -1384,20 +1384,23 @@ partial class MRubyState
                                     _ => 0
                                 });
                             }
-                            catch (OverflowException)
+                            catch (Exception e)
                             {
-                                IntegerMembers.RaiseIntegerOverflowError(this, opcode switch
-                                {
-                                    OpCode.Add => "add"u8,
-                                    OpCode.Sub => "sub"u8,
-                                    OpCode.Mul => "mul"u8,
-                                    OpCode.Div => "div"u8,
-                                    _ => default
-                                });
+                                OnCatchIntegerArithmeticError(this, opcode, e);
                             }
-                            catch (DivideByZeroException)
+
+                            static void OnCatchIntegerArithmeticError(MRubyState state, OpCode opcode, Exception ex)
                             {
-                                IntegerMembers.RaiseDivideByZeroError(this);
+                                switch (ex)
+                                {
+                                    case OverflowException:
+                                        IntegerMembers.RaiseIntegerOverflowError(state, opcode);
+                                        break;
+                                    case DivideByZeroException:
+                                        IntegerMembers.RaiseDivideByZeroError(state);
+                                        break;
+                                    default: return;
+                                }
                             }
 
                             goto Next;
@@ -1447,7 +1450,7 @@ partial class MRubyState
                                 }
                                 catch (OverflowException)
                                 {
-                                    IntegerMembers.RaiseIntegerOverflowError(this, opcode == OpCode.AddI ? "add"u8 : "sub"u8);
+                                    IntegerMembers.RaiseIntegerOverflowError(this, opcode);
                                 }
                                 goto Next;
                             case MRubyVType.Float:

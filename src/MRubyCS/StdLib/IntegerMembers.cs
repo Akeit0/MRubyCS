@@ -9,6 +9,22 @@ namespace MRubyCS.StdLib;
 static class IntegerMembers
 {
     [DoesNotReturn]
+    internal static void RaiseIntegerOverflowError(MRubyState state, OpCode opcode)
+    {
+        var message = opcode switch
+        {
+            OpCode.Add => "add"u8,
+            OpCode.Sub => "sub"u8,
+            OpCode.Mul => "mul"u8,
+            OpCode.Div => "div"u8,
+            OpCode.AddI => "add"u8,
+            OpCode.SubI => "sub"u8,
+            _ => "operation"u8
+        };
+        state.Raise(Names.RangeError, Utf8String.Format($"Integer overflow in {message}"));
+    }
+
+    [DoesNotReturn]
     internal static void RaiseIntegerOverflowError(MRubyState state, ReadOnlySpan<byte> message)
     {
         state.Raise(Names.RangeError, Utf8String.Format($"Integer overflow in {message}"));
