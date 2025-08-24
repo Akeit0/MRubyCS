@@ -1696,34 +1696,26 @@ partial class MRubyState
                         registerA.As<RString>().Concat(Stringify(Unsafe.Add(ref registerA, 1)));
                         goto Next;
                     case OpCode.Hash:
-                    {
-                        Markers.Hash();
-                        bb = OperandBB.Read(sequence, ref callInfo.ProgramCounter);
-                        registerA = ref registers[bb.A];
-                        var hash = NewHash(bb.B);
-                        var lastIndex = bb.B * 2;
-                        for (var i = 0; i < lastIndex; i += 2)
-                        {
-                            hash.Add(Unsafe.Add(ref registerA, i), Unsafe.Add(ref registerA, i + 1));
-                        }
-
-                        registerA = MRubyValue.From(hash);
-                        goto Next;
-                    }
                     case OpCode.HashAdd:
                     {
+                        Markers.Hash();
                         Markers.HashAdd();
                         bb = OperandBB.Read(sequence, ref callInfo.ProgramCounter);
                         registerA = ref registers[bb.A];
-                        var hashValue = registerA;
-                        var lastIndex = bb.B * 2 + 1;
 
-                        EnsureValueType(hashValue, MRubyVType.Hash);
-                        var hash = Unsafe.As<RHash>(hashValue.Union.RawObject);
-                        for (var i = 1; i < lastIndex; i += 2)
+                        if (opcode == OpCode.Hash)
                         {
-                            hash.Add(Unsafe.Add(ref registerA, i), Unsafe.Add(ref registerA, i + 1));
+                            var hash = NewHash(bb.B);
+                            hash.AddRange(ref registerA, bb.B);
+                            registerA = MRubyValue.From(hash);
                         }
+                        else
+                        {
+                            EnsureValueType(registerA, MRubyVType.Hash);
+                            var hash = Unsafe.As<RHash>(registerA);
+                            hash.AddRange(ref Unsafe.Add(ref registerA, 1), bb.B);
+                        }
+
                         goto Next;
                     }
                     case OpCode.HashCat:

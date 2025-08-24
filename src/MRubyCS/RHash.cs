@@ -93,6 +93,23 @@ public sealed class RHash : RObject, IEnumerable<KeyValuePair<MRubyValue, MRubyV
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void AddRange(ref MRubyValue keyValues,int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            var key =  Unsafe .Add(ref keyValues, i * 2);
+            var value = Unsafe.Add(ref keyValues, i * 2 + 1);
+            if (ContainsKey(key))
+            {
+                throw new InvalidOperationException("Duplicate key");
+            }
+            indexTable.Add(key, keys.Count);
+            keys.Add(key);
+            values.Add(value);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Add(MRubyValue key, MRubyValue value)
     {
         if (ContainsKey(key))
