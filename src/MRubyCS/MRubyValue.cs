@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using MRubyCS.Internals;
 using Utf8StringInterpolation;
 
@@ -48,7 +49,7 @@ public static class MRubyVTypeExtensions
 
     public static bool IsClass(this MRubyVType vType) => vType is MRubyVType.Class or MRubyVType.SClass or MRubyVType.Module;
 }
-
+[StructLayout(LayoutKind.Explicit)]
 public readonly struct MRubyValue : IEquatable<MRubyValue>
 {
     public static MRubyValue Nil => default;
@@ -122,7 +123,7 @@ public readonly struct MRubyValue : IEquatable<MRubyValue>
     public double FloatValue =>
         // Assume that MRB_USE_FLOAT32 is not defined
         // Assume that MRB_WORDBOX_NO_FLOAT_TRUNCATE is not defined
-        Unsafe.As<long, double>(ref Unsafe.AsRef(in Bits));
+        RawFloat;
 
     public long ObjectId
     {
@@ -141,8 +142,12 @@ public readonly struct MRubyValue : IEquatable<MRubyValue>
         }
     }
 
+    [FieldOffset(0)]
     internal readonly TypeObjectUnion Union;
+    [FieldOffset(8)]
     internal readonly long Bits;
+    [FieldOffset(8)]
+    internal readonly double RawFloat;
 
     MRubyValue(RObject obj)
     {

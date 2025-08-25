@@ -1463,8 +1463,8 @@ partial class MRubyState
                         if (lhsVType is MRubyVType.Integer or MRubyVType.Float &&
                             rhsVType is MRubyVType.Integer or MRubyVType.Float)
                         {
-                            var leftVal = lhsVType == MRubyVType.Integer ? registerA.Bits : registerA.FloatValue;
-                            var rightVal = rhsVType == MRubyVType.Integer ? rhs.Bits : rhs.FloatValue;
+                            var leftVal = lhsVType == MRubyVType.Integer ? registerA.Bits : registerA.RawFloat;
+                            var rightVal = rhsVType == MRubyVType.Integer ? rhs.Bits : rhs.RawFloat;
 
                             registerA = MRubyValue.From(opcode switch
                             {
@@ -1508,7 +1508,7 @@ partial class MRubyState
                                 }
                                 goto Next;
                             case MRubyVType.Float:
-                                registerA = MRubyValue.From(registerA.FloatValue + rV);
+                                registerA = MRubyValue.From(registerA.RawFloat + rV);
                                 goto Next;
                         }
 
@@ -1550,8 +1550,8 @@ partial class MRubyState
 
                         if (lhsVType == MRubyVType.Float && rhsVType == MRubyVType.Float)
                         {
-                            var leftVal = registerA.FloatValue;
-                            var rightVal = rhs.FloatValue;
+                            var leftVal = registerA.RawFloat;
+                            var rightVal = rhs.RawFloat;
                             registerA = MRubyValue.From(opcode switch
                             {
                                 // ReSharper disable once CompareOfFloatsByEqualityOperator
@@ -1568,8 +1568,8 @@ partial class MRubyState
                         if (lhsVType is MRubyVType.Integer or MRubyVType.Float &&
                             rhsVType is MRubyVType.Integer or MRubyVType.Float)
                         {
-                            var leftVal = lhsVType == MRubyVType.Integer ? registerA.Bits : (long)registerA.FloatValue;
-                            var rightVal = rhsVType == MRubyVType.Integer ? rhs.Bits : (long)rhs.FloatValue;
+                            var leftVal = lhsVType == MRubyVType.Integer ? registerA.Bits : (long)registerA.RawFloat;
+                            var rightVal = rhsVType == MRubyVType.Integer ? rhs.Bits : (long)rhs.RawFloat;
                             {
                                 registerA = MRubyValue.From(opcode switch
                                 {
