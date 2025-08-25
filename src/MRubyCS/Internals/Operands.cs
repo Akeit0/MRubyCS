@@ -190,3 +190,14 @@ internal unsafe struct OperandW
         return result;
     }
 }
+
+internal unsafe struct Byte4
+{
+    public fixed byte Bytes[4];
+}
+
+internal unsafe struct Byte2
+{
+    public fixed byte Bytes[2];
+}
+
