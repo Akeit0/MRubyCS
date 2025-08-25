@@ -1035,20 +1035,20 @@ partial class MRubyState
                     case OpCode.Enter:
                     {
                         Markers.Enter();
-
-                        bbb = OperandBBB.Read(sequence, ref callInfo.ProgramCounter);
+                        callInfo.ProgramCounter += 4;
+                        bbb = Unsafe.ReadUnaligned<OperandBBB>(ref Unsafe.Add(ref seqRef, 1));
                         var bits = (uint)bbb.A << 16 | (uint)bbb.B << 8 | bbb.C;
                         var aspec = new ArgumentSpec(bits);
 
                         var argc = callInfo.ArgumentCount;
                         var argv = registers[1..];
 
-                        var m1 = aspec.MandatoryArguments1Count;
+                        var m1 = (byte)((aspec.Bits >> 18) & 0x1f); //MandatoryArguments1Count
 
                         // fast pass
                         if ((bits & ~0b11111000000000000000001) == 0 && // no other arg
-                            !callInfo.ArgumentPacked &&
-                            callInfo.Proc?.HasFlag(MRubyObjectFlags.ProcStrict) == true)
+                            argc < MRubyCallInfo.CallMaxArgs && // not packed
+                            callInfo.Proc is not null && (callInfo.Proc.RawFlags & MRubyObjectFlags.ProcStrict) != 0)
                         {
                             FastPass(this, irep, ref callInfo, argc, m1);
 
@@ -1135,7 +1135,7 @@ partial class MRubyState
                             }
 
                             // strict argument check
-                            if (callInfo.Proc?.HasFlag(MRubyObjectFlags.ProcStrict) == true)
+                            if (callInfo.Proc is not null && (callInfo.Proc.RawFlags & MRubyObjectFlags.ProcStrict) != 0)
                             {
                                 if (argc < m1 + m2 || (r == 0 && argc > mandantryTotalRequired))
                                 {
@@ -1249,13 +1249,13 @@ partial class MRubyState
                         var kdict = Unsafe.Add(ref register0, kargOffset);
                         var value = default(MRubyValue);
                         if (kdict.VType != MRubyVType.Hash ||
-                            !registers[kargOffset].As<RHash>().TryGetValue(key, out value))
+                            !Unsafe.As<RHash>(kdict.Union.RawObject).TryGetValue(key, out value))
                         {
                             RaiseMissingKeywordError(key);
                         }
 
                         registerA = value;
-                        kdict.As<RHash>().TryDelete(key, out _);
+                        Unsafe.As<RHash>(kdict.Union.RawObject).TryDelete(key, out _);
                         goto Next;
 
                         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -1269,9 +1269,9 @@ partial class MRubyState
                         Markers.KeyP();
                         //OperandBB bb;
                         callInfo.ProgramCounter += 3;
+                        var kdict = Unsafe.Add(ref register0, callInfo.KeywordArgumentOffset).As<RHash>();
                         var key = MRubyValue.From(symbols[Unsafe.Add(ref seqRef, 2)]);
-                        var kdict = Unsafe.Add(ref register0, callInfo.KeywordArgumentOffset);
-                        registerA = MRubyValue.From(kdict.As<RHash>().TryGetValue(key, out _));
+                        registerA = MRubyValue.From(kdict.TryGetValue(key, out _));
                         goto Next;
                     }
                     case OpCode.KeyEnd:
@@ -1309,14 +1309,14 @@ partial class MRubyState
                     {
                         Markers.ReturnBlk();
 
-                        if (callInfo.Proc?.HasFlag(MRubyObjectFlags.ProcStrict) == true ||
-                            callInfo.Proc?.Scope is not REnv)
+                        if (callInfo.Proc is not { } proc || (proc.RawFlags & MRubyObjectFlags.ProcStrict) != 0 ||
+                            proc.Scope is not REnv)
                         {
                             goto case OpCode.Return;
                         }
                         //OperandB b;
                         callInfo.ProgramCounter += 2;
-                        var dest = callInfo.Proc.FindReturningDestination(out var env);
+                        var dest = proc.FindReturningDestination(out var env);
                         if (dest.Scope is not REnv destEnv || destEnv.Context == Context)
                         {
                             // check jump destination
