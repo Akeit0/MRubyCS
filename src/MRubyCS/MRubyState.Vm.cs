@@ -1038,45 +1038,44 @@ partial class MRubyState
                         callInfo.ProgramCounter += 4;
                         bbb = Unsafe.ReadUnaligned<OperandBBB>(ref Unsafe.Add(ref seqRef, 1));
                         var bits = (uint)bbb.A << 16 | (uint)bbb.B << 8 | bbb.C;
-                        var aspec = new ArgumentSpec(bits);
-
-                        var argc = callInfo.ArgumentCount;
-                        var argv = registers[1..];
-
-                        var m1 = (byte)((aspec.Bits >> 18) & 0x1f); //MandatoryArguments1Count
 
                         // fast pass
                         if ((bits & ~0b11111000000000000000001) == 0 && // no other arg
-                            argc < MRubyCallInfo.CallMaxArgs && // not packed
+                            callInfo.ArgumentCount < MRubyCallInfo.CallMaxArgs && // not packed
                             callInfo.Proc is not null && (callInfo.Proc.RawFlags & MRubyObjectFlags.ProcStrict) != 0)
                         {
-                            FastPass(this, irep, ref callInfo, argc, m1);
-
-                            static void FastPass(MRubyState state, Irep irep, ref MRubyCallInfo callInfo, byte argc, byte m1)
+                           // FastPass(this, irep, ref callInfo, bits);
+                            var m1 = (byte)((bits >> 18) & 0x1f);
+                            var argc = callInfo.ArgumentCount;
+                            var actualArgc = argc + (callInfo.KeywordArgumentCount >= MRubyCallInfo.CallMaxArgs ? 1 : 0);
+                            if (actualArgc != m1)
                             {
-                                if (argc + (callInfo.KeywordArgumentPacked ? 1 : 0) != m1)
-                                {
-                                    state.RaiseArgumentNumberError(argc + (callInfo.KeywordArgumentPacked ? 1 : 0), m1);
-                                }
-
-                                // clear local (but non-argument) variables
-                                var count = m1 + 2; // self + m1 + block
-                                if (irep.LocalVariables.Length - count > 0)
-                                {
-                                    state.Context.ClearStack(
-                                        callInfo.StackPointer + count,
-                                        irep.LocalVariables.Length - count);
-                                }
+                                RaiseArgumentNumberError(actualArgc, m1);
                             }
 
+                            // clear local (but non-argument) variables
+                            var count = m1 + 2; // self + m1 + block
+                            var clearCount = irep.LocalVariables.Length - count;
+                            if (clearCount > 0)
+                            {
+                                Context.ClearStack(
+                                    callInfo.StackPointer + count,
+                                    clearCount);
+                            }
                             goto Next;
                         }
-                        SlowPath(ref callInfo, argv, registers);
+
+                        SlowPath(this, irep, ref callInfo, registers, bits);
 
                         goto Next;
 
-                        void SlowPath(ref MRubyCallInfo callInfo, Span<MRubyValue> argv, Span<MRubyValue> registers)
+                        static void SlowPath(MRubyState state, Irep irep, ref MRubyCallInfo callInfo, Span<MRubyValue> registers, uint bits)
                         {
+                            var argc = callInfo.ArgumentCount;
+                            var argv = registers[1..];
+                            var aspec = new ArgumentSpec(bits);
+
+                            var m1 = aspec.MandatoryArguments1Count;
                             var o = aspec.OptionalArgumentsCount;
                             var r = aspec.TakeRestArguments ? 1 : 0;
                             var m2 = aspec.MandatoryArguments2Count;
@@ -1108,7 +1107,7 @@ partial class MRubyState
                                         case MRubyCallInfo.CallMaxArgs - 1:
                                         {
                                             // pack arguments and kdict
-                                            var packed = NewArray(registers.Slice(1, argc + 1));
+                                            var packed = state.NewArray(registers.Slice(1, argc + 1));
                                             registers[1] = MRubyValue.From(packed);
                                             argc = callInfo.ArgumentCount = MRubyCallInfo.CallMaxArgs;
                                             break;
@@ -1139,7 +1138,7 @@ partial class MRubyState
                             {
                                 if (argc < m1 + m2 || (r == 0 && argc > mandantryTotalRequired))
                                 {
-                                    RaiseArgumentNumberError(argc, m1 + m2);
+                                    state.RaiseArgumentNumberError(argc, m1 + m2);
                                 }
                             }
                             // extract first argument array to arguments
@@ -1150,7 +1149,6 @@ partial class MRubyState
                             }
 
                             // rest arguments
-                            var rest = default(MRubyValue);
                             if (argc < mandantryTotalRequired)
                             {
                                 var mlen = (int)m2;
@@ -1182,7 +1180,7 @@ partial class MRubyState
                                 // initialize rest arguments with empty Array
                                 if (r > 0)
                                 {
-                                    rest = MRubyValue.From(NewArray(0));
+                                    var rest = MRubyValue.From(state.NewArray(0));
                                     registers[m1 + o + 1] = rest;
                                 }
 
@@ -1202,7 +1200,7 @@ partial class MRubyState
                                 if (r > 0)
                                 {
                                     restElementLength = argc - m1 - o - m2;
-                                    rest = MRubyValue.From(NewArray(argv.Slice(m1 + o, restElementLength)));
+                                    var rest = MRubyValue.From(state.NewArray(argv.Slice(m1 + o, restElementLength)));
                                     registers[m1 + o + 1] = rest;
                                 }
 
@@ -1219,7 +1217,7 @@ partial class MRubyState
                             registers[blockPos] = block;
                             if (hasAnyKeyword)
                             {
-                                if (kdict.IsNil) kdict = MRubyValue.From(NewHash(0));
+                                if (kdict.IsNil) kdict = MRubyValue.From(state.NewHash(0));
                                 registers[keywordPos] = kdict;
                                 callInfo.MarkAsKeywordArgumentPacked();
                             }
