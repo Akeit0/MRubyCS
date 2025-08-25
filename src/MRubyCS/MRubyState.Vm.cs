@@ -1424,9 +1424,12 @@ partial class MRubyState
                         //OperandB b;
                         callInfo.ProgramCounter += 2;
                         ref var rhs = ref Unsafe.Add(ref registerA, 1);
-                        var lhsVType = registerA.VType;
-                        var rhsVType = rhs.VType;
-                        if (lhsVType == MRubyVType.Integer && rhsVType == MRubyVType.Integer)
+                        // fast path for integer and float because MRubyValue has TypeObjectUnion as offset 0
+                        // and MRubyVType.Integer is 7, MRubyVType.Float is 6 so we can assume immediateType can be safely casted to MRubyVType
+                        var lhsImmediateVType = (MRubyVType)Unsafe.As<MRubyValue, nuint>(ref registerA);
+                        var rhsImmediateVType = (MRubyVType)Unsafe.As<MRubyValue, nuint>(ref rhs);
+                        // MRubyVType.Integer * MRubyVType.Integer == 49 which is unique value
+                        if ((int)lhsImmediateVType * (int)rhsImmediateVType == (byte)MRubyVType.Integer * (byte)MRubyVType.Integer)
                         {
                             var leftInt = registerA.Bits;
                             var rightInt = rhs.Bits;
@@ -1463,11 +1466,12 @@ partial class MRubyState
                             goto Next;
                         }
 
-                        if (lhsVType is MRubyVType.Integer or MRubyVType.Float &&
-                            rhsVType is MRubyVType.Integer or MRubyVType.Float)
+                        // (MRubyVType.Float-6) | (MRubyVType.Float-6) == 0 | 0 == 0
+                        // (MRubyVType.Float-6) | (MRubyVType.Integer-6) == 0 | 1 == 1
+                        if ((((int)lhsImmediateVType - (int)MRubyVType.Float) | ((int)rhsImmediateVType - (int)MRubyVType.Float)) is 0 or 1)
                         {
-                            var leftVal = lhsVType == MRubyVType.Integer ? registerA.Bits : registerA.RawFloat;
-                            var rightVal = rhsVType == MRubyVType.Integer ? rhs.Bits : rhs.RawFloat;
+                            var leftVal = lhsImmediateVType == MRubyVType.Integer ? registerA.Bits : registerA.RawFloat;
+                            var rightVal = rhsImmediateVType == MRubyVType.Integer ? rhs.Bits : rhs.RawFloat;
 
                             registerA = MRubyValue.From(opcode switch
                             {
@@ -1480,7 +1484,7 @@ partial class MRubyState
                             goto Next;
                         }
 
-                        if (lhsVType == MRubyVType.String && rhsVType == MRubyVType.String && opcode == OpCode.Add)
+                        if (opcode == OpCode.Add && registerA.VType == MRubyVType.String && rhs.VType == MRubyVType.String)
                         {
                             registerA = MRubyValue.From(Unsafe.As<RString>(registerA.Union.RawObject) + Unsafe.As<RString>(rhs.Union.RawObject));
                             goto Next;
@@ -1498,7 +1502,7 @@ partial class MRubyState
                         callInfo.ProgramCounter += 3;
                     {
                         var rV = opcode == OpCode.AddI ? Unsafe.Add(ref seqRef, 2) : -Unsafe.Add(ref seqRef, 2);
-                        switch (registerA.VType)
+                        switch ((MRubyVType)Unsafe.As<MRubyValue, nuint>(ref registerA))
                         {
                             case MRubyVType.Integer:
                                 try
@@ -1548,10 +1552,11 @@ partial class MRubyState
                             }
                         }
 
-                        lhsVType = registerA.VType;
-                        rhsVType = rhs.VType;
+                        lhsImmediateVType = (MRubyVType)Unsafe.As<MRubyValue, nuint>(ref registerA);
+                        rhsImmediateVType = (MRubyVType)Unsafe.As<MRubyValue, nuint>(ref rhs);
 
-                        if (lhsVType == MRubyVType.Float && rhsVType == MRubyVType.Float)
+                        // (MRubyVType.Float+1) * (MRubyVType.Float+1) == 49 which is unique value
+                        if (((byte)lhsImmediateVType + 1) * ((byte)rhsImmediateVType + 1) == (byte)(MRubyVType.Float + 1) * (byte)(MRubyVType.Float + 1))
                         {
                             var leftVal = registerA.RawFloat;
                             var rightVal = rhs.RawFloat;
@@ -1568,11 +1573,13 @@ partial class MRubyState
                             goto Next;
                         }
 
-                        if (lhsVType is MRubyVType.Integer or MRubyVType.Float &&
-                            rhsVType is MRubyVType.Integer or MRubyVType.Float)
+                        // lhs can be Integer or Float, rhs can be Integer or Float
+                        // (MRubyVType.Float-6) | (MRubyVType.Float-6) == 0 | 0 == 0
+                        // (MRubyVType.Float-6) | (MRubyVType.Integer-6) == 0 | 1 == 1
+                        if ((((int)lhsImmediateVType - (int)MRubyVType.Float) | ((int)rhsImmediateVType - (int)MRubyVType.Float)) is 0 or 1)
                         {
-                            var leftVal = lhsVType == MRubyVType.Integer ? registerA.Bits : (long)registerA.RawFloat;
-                            var rightVal = rhsVType == MRubyVType.Integer ? rhs.Bits : (long)rhs.RawFloat;
+                            var leftVal = lhsImmediateVType == MRubyVType.Integer ? registerA.Bits : (long)registerA.RawFloat;
+                            var rightVal = rhsImmediateVType == MRubyVType.Integer ? rhs.Bits : (long)rhs.RawFloat;
                             {
                                 registerA = MRubyValue.From(opcode switch
                                 {
