@@ -32,14 +32,62 @@ public readonly struct CatchHandler(CatchHandlerType handlerType, uint begin, ui
 /// </summary>
 public class Irep
 {
-    public byte Flags { get; init; }
-    public ushort RegisterVariableCount { get; init; }
-    public byte[] Sequence { get; init; } = [];
-    public Symbol[] Symbols { get; init; } = [];
-    public Symbol[] LocalVariables { get; init; } = [];
-    public MRubyValue[] PoolValues { get; init; } = [];
-    public Irep[] Children { get; init; } = [];
-    public CatchHandler[] CatchHandlers { get; init; } = [];
+    public byte Flags
+    {
+        get => FlagsBackingField;
+        init => FlagsBackingField = value;
+    }
+
+    public ushort RegisterVariableCount
+    {
+        get => RegisterVariableCountBackingField;
+        init => RegisterVariableCountBackingField = value;
+    }
+
+    public byte[] Sequence
+    {
+        get => SequenceBackingField;
+        init => SequenceBackingField = value;
+    }
+
+    public Symbol[] Symbols
+    {
+        get => SymbolsBackingField;
+        init => SymbolsBackingField = value;
+    }
+
+    public Symbol[] LocalVariables
+    {
+        get => LocalVariablesBackingField;
+        init => LocalVariablesBackingField = value;
+    }
+
+    public MRubyValue[] PoolValues
+    {
+        get => PoolValuesBackingField;
+        init => PoolValuesBackingField = value;
+    }
+
+    public Irep[] Children
+    {
+        get => ChildrenBackingField;
+        init => ChildrenBackingField = value;
+    }
+
+    public CatchHandler[] CatchHandlers
+    {
+        get => CatchHandlersBackingField;
+        init => CatchHandlersBackingField = value;
+    }
+
+    internal readonly byte FlagsBackingField;
+    internal readonly ushort RegisterVariableCountBackingField;
+    internal readonly byte[] SequenceBackingField = [];
+    internal readonly Symbol[] SymbolsBackingField = [];
+    internal readonly Symbol[] LocalVariablesBackingField = [];
+    internal readonly MRubyValue[] PoolValuesBackingField = [];
+    internal readonly Irep[] ChildrenBackingField = [];
+    internal readonly CatchHandler[] CatchHandlersBackingField = [];
 
     public bool TryFindCatchHandler(int pc, CatchHandlerType filter, out CatchHandler handler)
     {

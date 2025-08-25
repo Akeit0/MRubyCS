@@ -31,7 +31,13 @@ public partial class MRubyState
     }
 
     public RClass BasicObjectClass { get; private set; } = default!;
-    public RClass ObjectClass { get; private set; } = default!;
+
+    public RClass ObjectClass
+    {
+        get => ObjectClassBackingField;
+        private set => ObjectClassBackingField = value;
+    }
+
     public RClass ClassClass { get; private set; } = default!;
     public RClass ModuleClass { get; private set; } = default!;
     public RClass ProcClass { get; private set; } = default!;
@@ -56,8 +62,12 @@ public partial class MRubyState
     public MRubyValueEqualityComparer ValueEqualityComparer { get; }
     public MRubyValueHashKeyEqualityComparer HashKeyEqualityComparer { get; }
 
+    internal RClass ObjectClassBackingField = default!;
+
     internal MRubyContext Context;
-    internal MRubyContext ContextRoot { get; }= new();
+    internal MRubyContext ContextRoot { get; } = new();
+
+    internal MRubyLongJumpException? ExceptionBackingField;
 
     public RiteParser RiteParser => riteParser ??= new RiteParser(this);
 
@@ -109,7 +119,7 @@ public partial class MRubyState
             InstanceVType = MRubyVType.Module,
             Super = ObjectClass,
         };
-        ClassClass = new RClass(default!)   // sentinel. only for ClassClass
+        ClassClass = new RClass(default!) // sentinel. only for ClassClass
         {
             InstanceVType = MRubyVType.Class,
             Super = ModuleClass,

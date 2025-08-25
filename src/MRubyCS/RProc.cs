@@ -50,14 +50,16 @@ public class RProc(Irep irep, int programCounter, RClass procClass) : RObject(MR
     public required RProc? Upper { get; init; }
     public required ICallScope? Scope
     {
-        get => scope;
-        init => scope = value;
+        get => ScopeBackingField;
+        init => ScopeBackingField = value;
     }
 
-    public Irep Irep => irep;
+    public Irep Irep => IrepBackingField;
     public int ProgramCounter => programCounter;
 
-    ICallScope? scope;
+    internal ICallScope? ScopeBackingField;
+
+    internal readonly Irep IrepBackingField = irep;
 
     internal RProc FindReturningDestination(out REnv? env)
     {
@@ -88,7 +90,7 @@ public class RProc(Irep irep, int programCounter, RClass procClass) : RObject(MR
 
     internal void UpdateScope(ICallScope scope)
     {
-        this.scope = scope;
+        this.ScopeBackingField = scope;
     }
 
     public RProc Dup()
