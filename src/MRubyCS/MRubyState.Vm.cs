@@ -1340,30 +1340,33 @@ partial class MRubyState
                     case OpCode.Break:
                     {
                         Markers.Break();
-                        if (callInfo.Proc is { } x && x.HasFlag(MRubyObjectFlags.ProcStrict))
+                        if (callInfo.Proc is { } proc)
                         {
-                            goto case OpCode.Return;
-                        }
-
-                        callInfo.ProgramCounter += 2;
-                        if (callInfo.Proc is { } proc &&
-                            !proc.HasFlag(MRubyObjectFlags.ProcOrphan) &&
-                            proc.Scope is REnv env && env.Context == Context)
-                        {
-                            var dest = proc.Upper;
-                            for (var i = Context.CallDepth; i > 0; i--)
+                            if ((proc.RawFlags & MRubyObjectFlags.ProcStrict) != 0)
                             {
-                                if (Context.CallStack[i - 1].Proc == dest)
+                                goto case OpCode.Return;
+                            }
+
+                            callInfo.ProgramCounter += 2;
+                            if ((proc.RawFlags & MRubyObjectFlags.ProcOrphan) == 0 &&
+                                proc.Scope is REnv env && env.Context == Context)
+                            {
+                                var dest = proc.Upper;
+                                for (var i = Context.CallDepth; i > 0; i--)
                                 {
-                                    var returnValue = registerA;
-                                    if (TryReturnJump(ref callInfo, i, returnValue))
+                                    if (Context.CallStack[i - 1].Proc == dest)
                                     {
-                                        goto JumpAndNext;
+                                        var returnValue = registerA;
+                                        if (TryReturnJump(ref callInfo, i, returnValue))
+                                        {
+                                            goto JumpAndNext;
+                                        }
+                                        return returnValue;
                                     }
-                                    return returnValue;
                                 }
                             }
                         }
+
                         Raise(Names.LocalJumpError, "break from proc-closure"u8);
                         goto Next; // not reached
                     }
@@ -1792,14 +1795,14 @@ partial class MRubyState
                         if (opcode == OpCode.Method)
                         {
                             proc = NewProc(irep.Children[bbB]);
-                            proc.SetFlag(MRubyObjectFlags.ProcStrict | MRubyObjectFlags.ProcScope);
+                            proc.RawFlags |= (MRubyObjectFlags.ProcStrict | MRubyObjectFlags.ProcScope);
                         }
                         else
                         {
                             proc = NewClosure(irep.Children[bbB]);
                             if (opcode == OpCode.Lambda)
                             {
-                                proc.SetFlag(MRubyObjectFlags.ProcStrict | MRubyObjectFlags.ProcScope);
+                                proc.RawFlags |= (MRubyObjectFlags.ProcStrict | MRubyObjectFlags.ProcScope);
                             }
                         }
                         registerA = MRubyValue.From(proc);
@@ -1960,7 +1963,7 @@ partial class MRubyState
 
                         // prepare closure
                         var proc = NewProc(targetIrep, receiver.As<RClass>());
-                        proc.SetFlag(MRubyObjectFlags.ProcScope);
+                        proc.RawFlags |= MRubyObjectFlags.ProcScope;
 
                         // prepare callstack
                         ref var nextCallInfo = ref Context.PushCallStack();

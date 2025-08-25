@@ -23,7 +23,14 @@ public class RBasic
     public MRubyVType VType { get; }
     public RClass Class { get; internal set; }
 
-    public MRubyObjectFlags Flags { get; private set; }
+    internal MRubyObjectFlags RawFlags;
+
+    public MRubyObjectFlags Flags
+    {
+        get => RawFlags;
+        private set => RawFlags = value;
+    }
+
     public bool IsFrozen => (Flags & MRubyObjectFlags.Frozen) > 0;
     public bool HasFlag(MRubyObjectFlags flag) => (Flags & flag) > 0;
 
