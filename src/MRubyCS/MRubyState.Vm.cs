@@ -359,13 +359,13 @@ partial class MRubyState
         {
             try
             {
+                Next:
                 ref var seqRef = ref Add(ref seq0, callInfo.ProgramCounter);
-                var opcode = (OpCode)seqRef;
                 var a = Add(ref seqRef, 1);
                 // var b = Unsafe.Add(ref seqRef, 2)
                 ref var registerA = ref a < registers.Length ? ref Add(ref register0, a) : ref NullRef<MRubyValue>();
-
-                switch (opcode)
+                var opcode = (OpCode)seqRef;
+                switch ((OpCode)seqRef)
                 {
                     case OpCode.Nop:
                         Markers.Nop();
@@ -648,19 +648,19 @@ partial class MRubyState
                     case OpCode.Jmp:
                         Markers.Jmp();
                         //OperandS s;
-                        callInfo.ProgramCounter += 3;
                         b2 = ReadUnaligned<Byte2>(ref Add(ref seqRef, 1));
-                        callInfo.ProgramCounter += (short)((b2.Bytes[0] << 8) | b2.Bytes[1]);
+                        callInfo.ProgramCounter += (3 + (short)(b2.Bytes[0] << 8) | b2.Bytes[1]);
                         goto Next;
                     case OpCode.JmpIf:
                         Markers.JmpIf();
                         //OperandBS bs;
                         callInfo.ProgramCounter += 4;
-                        if (1 < As<TypeObjectUnion, nuint>(ref AsRef(in registerA.Union)))
+                        if (1 < As<MRubyValue, nuint>(ref registerA))
                         {
                             b2 = ReadUnaligned<Byte2>(ref Add(ref seqRef, 2));
                             callInfo.ProgramCounter += (short)((b2.Bytes[0] << 8) | b2.Bytes[1]);
                         }
+
                         goto Next;
                     case OpCode.JmpNot:
                     case OpCode.JmpNil:
@@ -668,7 +668,7 @@ partial class MRubyState
                         Markers.JmpNil();
                         //OperandBS bs;
                         callInfo.ProgramCounter += 4;
-                        if (As<TypeObjectUnion, nuint>(ref AsRef(in registerA.Union)) <= (opcode == OpCode.JmpNot ? 1u : 0))
+                        if (As<MRubyValue, nuint>(ref registerA) <= (opcode == OpCode.JmpNot ? 1u : 0))
                         {
                             b2 = ReadUnaligned<Byte2>(ref Add(ref seqRef, 2));
                             callInfo.ProgramCounter += (short)((b2.Bytes[0] << 8) | b2.Bytes[1]);
@@ -1431,14 +1431,30 @@ partial class MRubyState
                             var rightInt = rhs.Bits;
                             try
                             {
-                                registerA = MRubyValue.From(opcode switch
+                                var opcodeStub = (int)opcode - (int)OpCode.Mul;
+                                if (opcodeStub < 0)
                                 {
-                                    OpCode.Add => checked(leftInt + rightInt),
-                                    OpCode.Sub => checked(leftInt - rightInt),
-                                    OpCode.Mul => checked(leftInt * rightInt),
-                                    OpCode.Div => leftInt / rightInt,
-                                    _ => 0
-                                });
+                                    if (opcodeStub == -4)
+                                    {
+                                        leftInt = checked(leftInt + rightInt);
+                                    }
+                                    else
+                                    {
+                                        leftInt = checked(leftInt - rightInt);
+                                    }
+                                }
+                                else
+                                {
+                                    if (opcodeStub == 0)
+                                    {
+                                        leftInt = checked(leftInt * rightInt);
+                                    }
+                                    else
+                                    {
+                                        leftInt /= rightInt;
+                                    }
+                                }
+                                registerA = MRubyValue.From(leftInt);
                             }
                             catch (Exception e)
                             {
@@ -1469,14 +1485,30 @@ partial class MRubyState
                             var leftVal = lhsImmediateVType == MRubyVType.Integer ? registerA.Bits : registerA.RawFloat;
                             var rightVal = rhsImmediateVType == MRubyVType.Integer ? rhs.Bits : rhs.RawFloat;
 
-                            registerA = MRubyValue.From(opcode switch
+                            var opcodeStub = (int)opcode - (int)OpCode.Mul;
+                            if (opcodeStub < 0)
                             {
-                                OpCode.Add => leftVal + rightVal,
-                                OpCode.Sub => leftVal - rightVal,
-                                OpCode.Mul => leftVal * rightVal,
-                                OpCode.Div => leftVal / rightVal,
-                                _ => default
-                            });
+                                if (opcodeStub == -4)
+                                {
+                                    leftVal += rightVal;
+                                }
+                                else
+                                {
+                                    leftVal -= rightVal;
+                                }
+                            }
+                            else
+                            {
+                                if (opcodeStub == 0)
+                                {
+                                    leftVal *= rightVal;
+                                }
+                                else
+                                {
+                                    leftVal /= rightVal;
+                                }
+                            }
+                            registerA = MRubyValue.From(leftVal);
                             goto Next;
                         }
 
@@ -1497,7 +1529,7 @@ partial class MRubyState
                         //OperandBB bb;
                         callInfo.ProgramCounter += 3;
                     {
-                        var rV = opcode == OpCode.AddI ? Add(ref seqRef, 2) : -Add(ref seqRef, 2);
+                        var rV = Add(ref seqRef, 2) * (opcode == OpCode.AddI ? 1 : -1);
                         switch ((MRubyVType)As<MRubyValue, nuint>(ref registerA))
                         {
                             case MRubyVType.Integer:
@@ -2074,7 +2106,9 @@ partial class MRubyState
                     }
                 }
 
-                Next: continue;
+#pragma warning disable CS0162 // Unreachable code detected
+                goto Next;
+#pragma warning restore CS0162 // Unreachable code detected
 
                 JumpAndNext:
                 callInfo = ref Context.CurrentCallInfo;
