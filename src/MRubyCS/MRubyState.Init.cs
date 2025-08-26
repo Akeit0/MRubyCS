@@ -59,6 +59,13 @@ public partial class MRubyState
     public RObject TopSelf { get; private set; } = default!;
     public MRubyLongJumpException? Exception { get; private set; }
 
+    internal MRubyValue ExceptionValue => Exception switch
+    {
+        MRubyRaiseException x => MRubyValue.From(x.ExceptionObject),
+        MRubyBreakException x => MRubyValue.From(x.BreakObject),
+        _ => default
+    };
+
     public MRubyValueEqualityComparer ValueEqualityComparer { get; }
     public MRubyValueHashKeyEqualityComparer HashKeyEqualityComparer { get; }
 

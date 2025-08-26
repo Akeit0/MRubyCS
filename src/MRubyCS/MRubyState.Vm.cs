@@ -702,12 +702,7 @@ partial class MRubyState
                         Markers.Except();
                         //OperandB b;
                         callInfo.ProgramCounter += 2;
-                        registerA = Exception switch
-                        {
-                            MRubyRaiseException x => MRubyValue.From(x.ExceptionObject),
-                            MRubyBreakException x => MRubyValue.From(x.BreakObject),
-                            _ => default
-                        };
+                        registerA = ExceptionValue;
                         Exception = null;
                         goto Next;
                     case OpCode.Rescue:
@@ -827,7 +822,7 @@ partial class MRubyState
                         if (callInfo.KeywordArgumentCount > 0)
                         {
                             var kargOffset = callInfo.KeywordArgumentOffset;
-                            if (callInfo.KeywordArgumentPacked)
+                            if (callInfo.KeywordArgumentCount >= MRubyCallInfo.CallMaxArgs)
                             {
                                 var kdict = nextRegisters[kargOffset];
                                 EnsureValueType(kdict, MRubyVType.Hash);
@@ -1755,19 +1750,24 @@ partial class MRubyState
                         Markers.Hash();
                         Markers.HashAdd();
                         //OperandBB bb;
-                        callInfo.ProgramCounter += 3;
-                        var bbB = Add(ref seqRef, 2);
-                        if (opcode == OpCode.Hash)
+                        HashOrHashAdd(this, ref callInfo, ref registerA, ref seqRef, opcode);
+
+                        static void HashOrHashAdd(MRubyState state, ref MRubyCallInfo callInfo, ref MRubyValue registerA, ref byte seqRef, OpCode opcode)
                         {
-                            var hash = NewHash(bbB);
-                            hash.AddRange(ref registerA, bbB);
-                            registerA = MRubyValue.From(hash);
-                        }
-                        else
-                        {
-                            EnsureValueType(registerA, MRubyVType.Hash);
-                            var hash = As<MRubyValue,RHash>(ref registerA);
-                            hash.AddRange(ref Add(ref registerA, 1), bbB);
+                            callInfo.ProgramCounter += 3;
+                            var bbB = Add(ref seqRef, 2);
+                            if (opcode == OpCode.Hash)
+                            {
+                                var hash = state.NewHash(bbB);
+                                hash.AddRange(ref registerA, bbB);
+                                registerA = MRubyValue.From(hash);
+                            }
+                            else
+                            {
+                                state.EnsureValueType(registerA, MRubyVType.Hash);
+                                var hash = As<MRubyValue, RHash>(ref registerA);
+                                hash.AddRange(ref Add(ref registerA, 1), bbB);
+                            }
                         }
 
                         goto Next;
@@ -1798,21 +1798,34 @@ partial class MRubyState
                     case OpCode.RangeInc:
                     case OpCode.RangeExc:
                         Markers.RangeInc();
+                        Markers.RangeExc();
                         //OperandB b;
-                        callInfo.ProgramCounter += 2;
                     {
-                        var begin = registerA;
-                        var end = Add(ref registerA, 1);
-                        var range = new RRange(begin, end, opcode == OpCode.RangeExc, RangeClass);
-                        range.MarkAsFrozen();
-                        registerA = MRubyValue.From(range);
+                        RangeIncOrExc(this, ref callInfo, ref registerA, opcode);
+
+                        static void RangeIncOrExc(MRubyState state, ref MRubyCallInfo callInfo, ref MRubyValue registerA, OpCode opcode)
+                        {
+                            callInfo.ProgramCounter += 2;
+                            var begin = registerA;
+                            var end = Add(ref registerA, 1);
+                            var range = new RRange(begin, end, opcode == OpCode.RangeExc, state.RangeClass);
+                            range.MarkAsFrozen();
+                            registerA = MRubyValue.From(range);
+                        }
+
                         goto Next;
                     }
                     case OpCode.OClass:
                         Markers.OClass();
                         //OperandB b;
                         callInfo.ProgramCounter += 2;
-                        registerA = MRubyValue.From(ObjectClass);
+                        SetOClass(this, ref registerA);
+
+                        static void SetOClass(MRubyState state, ref MRubyValue registerA)
+                        {
+                            registerA = MRubyValue.From(state.ObjectClass);
+                        }
+
                         goto Next;
                     case OpCode.Class:
                     {
@@ -1969,8 +1982,15 @@ partial class MRubyState
                         irep = callInfo.Proc!.IrepBackingField;
                         sequence = irep.SequenceBackingField.AsSpan();
                         symbols = irep.SymbolsBackingField;
-                        Context.ExtendStack(callInfo.StackPointer + irep.RegisterVariableCountBackingField + 1);
-                        Context.ClearStack(callInfo.StackPointer + 1, irep.RegisterVariableCountBackingField - 1);
+
+                        ExtendAndClearStack(this, callInfo.StackPointer, irep.RegisterVariableCountBackingField);
+
+                        static void ExtendAndClearStack(MRubyState state, int stackPointer, int registerVariableCount)
+                        {
+                            var context = state.Context;
+                            context.ExtendStack(stackPointer + registerVariableCount + 1);
+                            context.ClearStack(stackPointer + 1, registerVariableCount - 1);
+                        }
 
                         registers = Context.Stack.AsSpan(nextCallInfo.StackPointer);
 
@@ -2048,13 +2068,7 @@ partial class MRubyState
                     case OpCode.Stop:
                     {
                         Markers.Stop();
-                        var returnValue = Exception switch
-                        {
-                            MRubyRaiseException x => MRubyValue.From(x.ExceptionObject),
-                            MRubyBreakException x => MRubyValue.From(x.BreakObject),
-                            _ => default
-                        };
-                        if (TryUnwindEnsureJump(ref callInfo, Context.CallDepth, BreakTag.Stop, returnValue))
+                        if (TryUnwindEnsureJump(ref callInfo, Context.CallDepth, BreakTag.Stop, ExceptionValue))
                         {
                             goto JumpAndNext;
                         }
@@ -2079,8 +2093,8 @@ partial class MRubyState
 
                 JumpAndNext:
                 callInfo = ref Context.CurrentCallInfo;
-                irep = callInfo.Proc!.IrepBackingField;
                 registers = Context.Stack.AsSpan(callInfo.StackPointer);
+                irep = callInfo.Proc!.IrepBackingField;
                 sequence = irep.SequenceBackingField.AsSpan();
                 symbols = irep.SymbolsBackingField;
 
