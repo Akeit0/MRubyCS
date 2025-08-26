@@ -1766,7 +1766,7 @@ partial class MRubyState
                         else
                         {
                             EnsureValueType(registerA, MRubyVType.Hash);
-                            var hash = As<RHash>(registerA);
+                            var hash = As<MRubyValue,RHash>(ref registerA);
                             hash.AddRange(ref Add(ref registerA, 1), bbB);
                         }
 
