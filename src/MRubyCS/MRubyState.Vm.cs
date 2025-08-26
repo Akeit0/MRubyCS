@@ -392,7 +392,11 @@ partial class MRubyState
                         Markers.LoadINeg();
                         // OperandBB bb;
                         callInfo.ProgramCounter += 3;
-                        registerA = MRubyValue.From(Add(ref seqRef, 2) * (opcode == OpCode.LoadI8 ? 1 : -1));
+                    {
+                        ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                        alias.Type = (nuint)MRubyVType.Integer;
+                        alias.Bits = (Add(ref seqRef, 2) * (opcode == OpCode.LoadI8 ? 1 : -1));
+                    }
                         goto Next;
                     case OpCode.LoadI__1:
                     case OpCode.LoadI_0:
@@ -406,27 +410,43 @@ partial class MRubyState
                         Markers.LoadI__1();
                         // OperandB b;
                         callInfo.ProgramCounter += 2;
-                        registerA = MRubyValue.From((int)opcode - (int)OpCode.LoadI_0);
+                    {
+                        ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                        alias.Type = (nuint)MRubyVType.Integer;
+                        alias.Bits = ((int)opcode - (int)OpCode.LoadI_0);
+                    }
                         goto Next;
                     case OpCode.LoadI16:
                         Markers.LoadI16();
                         // OperandBS bs;
                         callInfo.ProgramCounter += 4;
                         var b2 = ReadUnaligned<Byte2>(ref Add(ref seqRef, 2));
-                        registerA = MRubyValue.From((b2.Bytes[0] << 8) | b2.Bytes[1]);
+                    {
+                        ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                        alias.Type = (nuint)MRubyVType.Integer;
+                        alias.Bits = ((b2.Bytes[0] << 8) | b2.Bytes[1]);
+                    }
                         goto Next;
                     case OpCode.LoadI32:
                         Markers.LoadI32();
                         // OperandBSS bss;
                         callInfo.ProgramCounter += 6;
                         var b4 = ReadUnaligned<Byte4>(ref Add(ref seqRef, 2));
-                        registerA = MRubyValue.From((b4.Bytes[0] << 24) | (b4.Bytes[1] << 16) | (b4.Bytes[2] << 8) | b4.Bytes[3]);
+                    {
+                        ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                        alias.Type = (nuint)MRubyVType.Integer;
+                        alias.Bits = ((b4.Bytes[0] << 24) | (b4.Bytes[1] << 16) | (b4.Bytes[2] << 8) | b4.Bytes[3]);
+                    }
                         goto Next;
                     case OpCode.LoadSym:
                         Markers.LoadSym();
                         // OperandBB bb;
                         callInfo.ProgramCounter += 3;
-                        registerA = MRubyValue.From(Add(ref symbol0, Add(ref seqRef, 2)));
+                    {
+                        ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                        alias.Type = (nuint)MRubyVType.Symbol;
+                        alias.Bits = (Add(ref symbol0, Add(ref seqRef, 2))).Value;
+                    }
                         goto Next;
                     case OpCode.LoadNil:
                     case OpCode.LoadSelf:
@@ -442,7 +462,11 @@ partial class MRubyState
                         Markers.LoadF();
                         // OperandB b;
                         callInfo.ProgramCounter += 2;
-                        registerA = MRubyValue.From(opcode == OpCode.LoadT);
+                    {
+                        ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                        alias.Type = (nuint)(21 - opcode);
+                        alias.Bits = 0;
+                    }
                         goto Next;
                     case OpCode.GetGV:
                         Markers.GetGV();
@@ -1427,14 +1451,18 @@ partial class MRubyState
                             var rightInt = rhs.Bits;
                             try
                             {
-                                registerA = MRubyValue.From(opcode switch
                                 {
-                                    //OpCode.Add => checked(leftInt + rightInt),
-                                    OpCode.Sub => checked(leftInt - rightInt),
-                                    OpCode.Mul => checked(leftInt * rightInt),
-                                    OpCode.Div => leftInt / rightInt,
-                                    _ => checked(leftInt + rightInt), // OpCode.Add
-                                });
+                                    ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                                    alias.Type = (nuint)MRubyVType.Integer;
+                                    alias.Bits = (opcode switch
+                                    {
+                                        //OpCode.Add => checked(leftInt + rightInt),
+                                        OpCode.Sub => checked(leftInt - rightInt),
+                                        OpCode.Mul => checked(leftInt * rightInt),
+                                        OpCode.Div => leftInt / rightInt,
+                                        _ => checked(leftInt + rightInt), // OpCode.Add
+                                    });
+                                }
                             }
                             catch (Exception e)
                             {
@@ -1464,15 +1492,18 @@ partial class MRubyState
                         {
                             var leftVal = lhsImmediateVType == MRubyVType.Integer ? registerA.Bits : registerA.RawFloat;
                             var rightVal = rhsImmediateVType == MRubyVType.Integer ? rhs.Bits : rhs.RawFloat;
-
-                            registerA = MRubyValue.From(opcode switch
                             {
-                                //OpCode.Add => leftVal + rightVal,
-                                OpCode.Sub => leftVal - rightVal,
-                                OpCode.Mul => leftVal * rightVal,
-                                OpCode.Div => leftVal / rightVal,
-                                _ => leftVal + rightVal, //OpCode.Add
-                            });
+                                ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                                alias.Type = (nuint)MRubyVType.Float;
+                                alias.Float = (opcode switch
+                                {
+                                    //OpCode.Add => leftVal + rightVal,
+                                    OpCode.Sub => leftVal - rightVal,
+                                    OpCode.Mul => leftVal * rightVal,
+                                    OpCode.Div => leftVal / rightVal,
+                                    _ => leftVal + rightVal, //OpCode.Add
+                                });
+                            }
                             goto Next;
                         }
 
@@ -1499,7 +1530,11 @@ partial class MRubyState
                             case MRubyVType.Integer:
                                 try
                                 {
-                                    registerA = MRubyValue.From(checked(registerA.Bits + rV));
+                                    {
+                                        ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                                        alias.Type = (nuint)MRubyVType.Integer;
+                                        alias.Bits = (checked(registerA.Bits + rV));
+                                    }
                                 }
                                 catch (OverflowException)
                                 {
@@ -1552,15 +1587,21 @@ partial class MRubyState
                         {
                             var leftVal = registerA.RawFloat;
                             var rightVal = rhs.RawFloat;
-                            registerA = MRubyValue.From(opcode switch
                             {
-                                OpCode.LT => leftVal < rightVal,
-                                OpCode.LE => leftVal <= rightVal,
-                                OpCode.GT => leftVal > rightVal,
-                                OpCode.GE => leftVal >= rightVal,
-                                // ReSharper disable once CompareOfFloatsByEqualityOperator
-                                _ => leftVal == rightVal //OpCode.EQ
-                            });
+                                ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                                alias.Type = (opcode switch
+                                {
+                                    OpCode.LT => leftVal < rightVal,
+                                    OpCode.LE => leftVal <= rightVal,
+                                    OpCode.GT => leftVal > rightVal,
+                                    OpCode.GE => leftVal >= rightVal,
+                                    // ReSharper disable once CompareOfFloatsByEqualityOperator
+                                    _ => leftVal == rightVal //OpCode.EQ
+                                })
+                                    ? (nuint)MRubyVType.True
+                                    : (nuint)MRubyVType.False;
+                                alias.Bits = 0;
+                            }
                             goto Next;
                         }
 
@@ -1572,14 +1613,18 @@ partial class MRubyState
                             var leftVal = lhsImmediateVType == MRubyVType.Integer ? registerA.Bits : (long)registerA.RawFloat;
                             var rightVal = rhsImmediateVType == MRubyVType.Integer ? rhs.Bits : (long)rhs.RawFloat;
                             {
-                                registerA = MRubyValue.From(opcode switch
+                                ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
+                                alias.Type = (opcode switch
                                 {
                                     OpCode.LT => leftVal < rightVal,
                                     OpCode.LE => leftVal <= rightVal,
                                     OpCode.GT => leftVal > rightVal,
                                     OpCode.GE => leftVal >= rightVal,
-                                    _ => leftVal == rightVal, // OpCode.EQ
-                                });
+                                    _ => leftVal == rightVal //OpCode.EQ
+                                })
+                                    ? (nuint)MRubyVType.True
+                                    : (nuint)MRubyVType.False;
+                                alias.Bits = 0;
                             }
                             goto Next;
                         }
