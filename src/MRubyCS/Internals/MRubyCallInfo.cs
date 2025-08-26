@@ -330,8 +330,14 @@ class MRubyContext
     {
         if (Stack.Length <= room)
         {
-            var newSize = Math.Max(128, Math.Max(Stack.Length * 2, room));
-            Array.Resize(ref Stack, newSize);
+            Resize(ref Stack, room);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        static void Resize(ref MRubyValue[] stack, int room)
+        {
+            var newSize = Math.Max(128, Math.Max(stack.Length * 2, room));
+            Array.Resize(ref stack, newSize);
         }
     }
 
