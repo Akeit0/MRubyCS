@@ -395,7 +395,7 @@ partial class MRubyState
                     {
                         ref var alias = ref As<MRubyValue, MRubyValueImmediateUnsafeAlias>(ref registerA);
                         alias.Type = (nuint)MRubyVType.Integer;
-                        alias.Bits = (Add(ref seqRef, 2) * (opcode == OpCode.LoadI8 ? 1 : -1));
+                        alias.Bits = (Add(ref seqRef, 2) * ((int)OpCode.LoadI8 + (int)OpCode.LoadINeg-(int)opcode*2));
                     }
                         goto Next;
                     case OpCode.LoadI__1:
